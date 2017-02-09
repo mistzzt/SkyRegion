@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using OTAPI;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -24,6 +25,10 @@ namespace SkyRegion
 		internal List<int> InRegion = new List<int>();
 
 		internal SkyRegionManager Srm;
+
+		private double _worldSurface;
+
+		private double _rockLayer;
 
 		public override void Initialize()
 		{
@@ -60,6 +65,40 @@ namespace SkyRegion
 		{
 			Srm = new SkyRegionManager(TShock.DB);
 			Srm.LoadRegions();
+
+			_worldSurface = Main.worldSurface;
+			_rockLayer = Main.rockLayer;
+
+			Philosophyz.Philosophyz.PreSendData += PreSd;
+			Philosophyz.Philosophyz.PostSendData += PostSd;
+		}
+
+		private HookResult PostSd(TSPlayer player, int remoteclient)
+		{
+			if (remoteclient == -1)
+				return HookResult.Cancel;
+
+			if (!InRegion.Contains(player.Index))
+				return HookResult.Continue;
+
+			Main.worldSurface = _worldSurface;
+			Main.rockLayer = _rockLayer;
+			return HookResult.Continue;
+		}
+
+		private HookResult PreSd(TSPlayer player, int remoteclient)
+		{
+			if (!InRegion.Contains(player.Index))
+				return HookResult.Continue;
+
+			if (remoteclient == -1)
+				return HookResult.Cancel;
+
+			_worldSurface = Main.worldSurface;
+			_rockLayer = Main.rockLayer;
+			Main.worldSurface = player.CurrentRegion.Area.Bottom;
+			Main.rockLayer = player.CurrentRegion.Area.Bottom + 10;
+			return HookResult.Continue;
 		}
 
 		private void OnUpdate(EventArgs args)
