@@ -6,12 +6,15 @@ using OTAPI;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.DB;
 
 namespace SkyRegion
 {
 	[ApiVersion(2, 0)]
 	public class Sr : TerrariaPlugin
 	{
+		private const string SrRegionKey = "sr.cur.region";
+
 		public override string Name => Assembly.GetExecutingAssembly().GetName().Name;
 
 		public override string Author => "MistZZT";
@@ -36,6 +39,7 @@ namespace SkyRegion
 			ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInit, -1000);
 			ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
 			ServerApi.Hooks.GameInitialize.Register(this, OnInit);
+			ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
 		}
 
 		protected override void Dispose(bool disposing)
@@ -46,8 +50,16 @@ namespace SkyRegion
 				ServerApi.Hooks.GamePostInitialize.Deregister(this, OnPostInit);
 				ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
 				ServerApi.Hooks.GameInitialize.Deregister(this, OnInit);
+				ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
 			}
 			base.Dispose(disposing);
+		}
+
+		private static void OnGreet(GreetPlayerEventArgs args)
+		{
+			var player = TShock.Players.ElementAtOrDefault(args.Who);
+
+			player?.SetData(SrRegionKey, -1);
 		}
 
 		private void OnInit(EventArgs args)
@@ -73,9 +85,9 @@ namespace SkyRegion
 			Philosophyz.Philosophyz.PostSendData += PostSd;
 		}
 
-		private HookResult PostSd(TSPlayer player, int remoteclient)
+		private HookResult PostSd(TSPlayer player, bool allMsg)
 		{
-			if (remoteclient == -1)
+			if (allMsg) // 跳过所有全体
 				return HookResult.Cancel;
 
 			if (!InRegion.Contains(player.Index))
@@ -86,18 +98,19 @@ namespace SkyRegion
 			return HookResult.Continue;
 		}
 
-		private HookResult PreSd(TSPlayer player, int remoteclient)
+		private HookResult PreSd(TSPlayer player, bool allMsg)
 		{
 			if (!InRegion.Contains(player.Index))
 				return HookResult.Continue;
 
-			if (remoteclient == -1)
+			if (allMsg) // 全体信息不发送给区域内玩家（发送以后会无效）
 				return HookResult.Cancel;
 
 			_worldSurface = Main.worldSurface;
 			_rockLayer = Main.rockLayer;
-			Main.worldSurface = player.CurrentRegion.Area.Bottom;
-			Main.rockLayer = player.CurrentRegion.Area.Bottom + 10;
+			var bottom = TShock.Regions.GetRegionByID(player.GetData<int>(SrRegionKey)).Area.Bottom;
+			Main.worldSurface = bottom;
+			Main.rockLayer = bottom + 10;
 			return HookResult.Continue;
 		}
 
@@ -105,15 +118,18 @@ namespace SkyRegion
 		{
 			foreach (var player in TShock.Players.Where(p => p?.Active == true))
 			{
-				if (player.CurrentRegion != null && Srm.SrRegions.Any(p => p.ID == player.CurrentRegion.ID))
+				Region region = null;
+				if (Srm.SrRegions.Any(p => (region = TShock.Regions.GetRegionByID(p.ID))?.InArea(player.TileX, player.TileY) == true))
 				{
 					if (!InRegion.Contains(player.Index))
 					{
 						InRegion.Add(player.Index);
+						player.SetData(SrRegionKey, region.ID);
+
 						var ws = Main.worldSurface;
 						var rl = Main.rockLayer;
-						Main.worldSurface = player.CurrentRegion.Area.Bottom;
-						Main.rockLayer = player.CurrentRegion.Area.Bottom + 10;
+						Main.worldSurface = region.Area.Bottom;
+						Main.rockLayer = region.Area.Bottom + 10;
 						player.SendData(PacketTypes.WorldInfo);
 						Main.worldSurface = ws;
 						Main.rockLayer = rl;
@@ -122,6 +138,7 @@ namespace SkyRegion
 				else if (InRegion.Contains(player.Index))
 				{
 					InRegion.Remove(player.Index);
+					player.SetData(SrRegionKey, -1);
 					player.SendData(PacketTypes.WorldInfo);
 				}
 			}
