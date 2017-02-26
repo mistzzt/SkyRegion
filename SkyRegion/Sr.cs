@@ -81,8 +81,8 @@ namespace SkyRegion
 			_worldSurface = Main.worldSurface;
 			_rockLayer = Main.rockLayer;
 
-			Philosophyz.Philosophyz.PreSendData += PreSd;
-			Philosophyz.Philosophyz.PostSendData += PostSd;
+			Philosophyz.Hooks.SendDataHooks.PreSendData += PreSd;
+			Philosophyz.Hooks.SendDataHooks.PostSendData += PostSd;
 		}
 
 		private HookResult PostSd(TSPlayer player, bool allMsg)
