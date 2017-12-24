@@ -13,6 +13,8 @@ namespace SkyRegion
 	[ApiVersion(2, 0)]
 	public class Sr : TerrariaPlugin
 	{
+	    private const int DefaultIndex = -1;
+
 		private const string SrRegionKey = "sr.cur.region";
 
 		public override string Name => Assembly.GetExecutingAssembly().GetName().Name;
@@ -59,7 +61,7 @@ namespace SkyRegion
 		{
 			var player = TShock.Players.ElementAtOrDefault(args.Who);
 
-			player?.SetData(SrRegionKey, -1);
+			player?.SetData(SrRegionKey, DefaultIndex);
 		}
 
 		private void OnInit(EventArgs args)
@@ -69,8 +71,10 @@ namespace SkyRegion
 
 		private void OnLeave(LeaveEventArgs args)
 		{
-			if (InRegion.Contains(args.Who))
-				InRegion.Remove(args.Who);
+		    if (InRegion.Contains(args.Who))
+		    {
+		        InRegion.Remove(args.Who);
+		    }
 		}
 
 		private void OnPostInit(EventArgs args)
@@ -85,12 +89,12 @@ namespace SkyRegion
 			Philosophyz.Hooks.SendDataHooks.PostSendData += PostSd;
 		}
 
-		private HookResult PostSd(TSPlayer player, bool allMsg)
+		private HookResult PostSd(int remoteClient, int index)
 		{
-			if (allMsg) // 跳过所有全体
+			if (remoteClient == -1) // 跳过所有全体
 				return HookResult.Cancel;
 
-			if (!InRegion.Contains(player.Index))
+			if (!InRegion.Contains(index))
 				return HookResult.Continue;
 
 			Main.worldSurface = _worldSurface;
@@ -98,17 +102,17 @@ namespace SkyRegion
 			return HookResult.Continue;
 		}
 
-		private HookResult PreSd(TSPlayer player, bool allMsg)
+		private HookResult PreSd(int remoteClient, int index)
 		{
-			if (!InRegion.Contains(player.Index))
+			if (!InRegion.Contains(index))
 				return HookResult.Continue;
 
-			if (allMsg) // 全体信息不发送给区域内玩家（发送以后会无效）
+			if (remoteClient == -1) // 全体信息不发送给区域内玩家（发送以后会无效）
 				return HookResult.Cancel;
 
 			_worldSurface = Main.worldSurface;
 			_rockLayer = Main.rockLayer;
-			var bottom = TShock.Regions.GetRegionByID(player.GetData<int>(SrRegionKey)).Area.Bottom;
+			var bottom = TShock.Regions.GetRegionByID(TShock.Players[index].GetData<int>(SrRegionKey)).Area.Bottom;
 			Main.worldSurface = bottom;
 			Main.rockLayer = bottom + 10;
 			return HookResult.Continue;
@@ -138,7 +142,7 @@ namespace SkyRegion
 				else if (InRegion.Contains(player.Index))
 				{
 					InRegion.Remove(player.Index);
-					player.SetData(SrRegionKey, -1);
+					player.SetData(SrRegionKey, DefaultIndex);
 					player.SendData(PacketTypes.WorldInfo);
 				}
 			}
